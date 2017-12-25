@@ -15,9 +15,10 @@
 
 from sys import argv,stdin,stderr
 from lark import Lark
+from json import dumps
 
 class ENQP():
-    def __init__(self, mapping=None, nested=None, version="6"):
+    def __init__(self, mapping=None, nested=set(), version="6"):
         self.mapping = mapping
         self.nested = nested
         self.parser = Lark('query:          query_part | boolean_query\n' +
@@ -25,10 +26,10 @@ class ENQP():
                            'boolean_query:  query_part operator query_part (operator query_part)*\n' +
                            'dictionary:     "{" [key_val] ("," key_val)* "}"\n' +
                            'key_val:        field ":" (string | dictionary)\n' +
-                           'operator:       and | or | and_not\n' +
+                           'operator:       and | or\n' + # | and_not\n' +
                            'and:            "and"i\n' +
                            'or:             "or"i\n' +
-                           'and_not:        "and not"i\n' +
+                           #'and_not:        "and not"i\n' +
                            'expr:           string | fielded_expr\n' +
                            'fielded_expr:   field ":" (string | dictionary)\n' +
                            'field:          CNAME | "\\"" CNAME "\\""\n' +
@@ -42,22 +43,64 @@ class ENQP():
 
 
     def _handle(self, node, field=''):
-        if node.data in [ 'query', 'query_part'] :
+        if node.data in [ 'query', 'query_part']:
             return self._handle(node.children[0], field)
         elif node.data == 'dictionary':
             if len(node.children) == 0:
                 return { 'match_all': {} }
         elif node.data == 'boolean_query':
-            return { 'bool': { 'must': {} } }
+            # 1. split on "or" operator
+            should,c = [], []
+
+            for t in node.children:
+                if t.data == 'operator' and t.children[0].data == 'or':
+                    should.append(c)
+                    c = []
+                else:
+                    c += [ t ]
+           
+            should.append(c)
+
+            if len(should) == 1:
+                return  {
+                            'bool': {
+                                'must': [
+                                    self._handle(x) for x in should[0] if x.data != 'operator'
+                                ]
+                            }
+                        }
+            else:
+                return  {
+                            'bool': {
+                                'min_should_match': 1,
+                                'should': [
+                                    self._handle(l[0]) if len(l) == 1 else
+                                    {
+                                        'bool': {
+                                            'must': [
+                                                self._handle(x) for x in l if x.data != 'operator'
+                                            ]
+                                        }
+                                    } for l in should 
+                                ]
+                            }
+                        }
         elif node.data == 'asterisk':
             return { 'match_all': {} }
         elif node.data == 'expr':
             return self._handle(node.children[0], field)
         elif node.data == 'fielded_expr':
-            return self._handle(node.children[1], '.'.join([ node.children[0].children[0].value ]))
-        elif node.data == 'string':
+            f = node.children[0].children[0].value
 
-            return { 'term': { field: node.children[0].value } }
+            return self._handle(node.children[1], field + '.' + f if field != '' else f)
+        elif node.data == 'string':
+            return { 'term': { field if field != '' else '_all': node.children[0].value } }
+        #elif len(node.children) == 1:
+        #    print('default', file=stderr)
+        #    return self._handle(node.children[0], field)
+        #elif len(node.children) > 1:
+        #    print('default dict', file=stderr)
+        #    return { c.data:self._handle(c, field) for c in node.children } if 
 
 
     def _parse(self, query):
@@ -73,5 +116,5 @@ class ENQP():
 
 if __name__ == "__main__":
     e = ENQP()
-    print(e.parse(argv[1]))
+    print(dumps(e.parse(argv[1]), indent=2))
 
