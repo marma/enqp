@@ -48,6 +48,26 @@ class ENQP():
         elif node.data == 'dictionary':
             if len(node.children) == 0:
                 return { 'match_all': {} }
+            else:
+                if field != '':
+                    return {
+                                'nested': {
+                                    'path': field,
+                                    'query': {
+                                        'bool': {
+                                            'must': [ self._handle(kv, field) for kv in node.children ]
+                                        }
+                                    } if len(node.children) > 1 else self._handle(node.children[0], field)
+                                }
+                            }
+                else:
+                    return  {
+                                'bool': {
+                                    'must': [ self._handle(kv, field) for kv in node.children ]
+                                }
+                            } if len(node.children) > 1 else self._handle(node.children[0], field)
+        elif node.data == 'key_val':
+            return self._handle(node.children[1], '.'.join([field, node.children[0].children[0].value]) if field != '' else node.children[0].children[0].value)
         elif node.data == 'boolean_query':
             # 1. split on "or" operator
             should,c = [], []
