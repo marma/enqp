@@ -138,7 +138,12 @@ class ENQP():
 
             return self._handle(node.children[1], field + '.' + f if field != '' else f)
         elif node.data == 'string':
-            return { 'match': { field if field != '' else '_all': node.children[0].value } }
+            s = node.children[0].value
+
+            if s[0] == '"':
+                s = s[1:-1]
+
+            return { 'match': { field if field != '' else '_all': s } }
         #elif len(node.children) == 1:
         #    print('default', file=stderr)
         #    return self._handle(node.children[0], field)

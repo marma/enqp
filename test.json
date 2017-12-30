@@ -1,0 +1,14 @@
+{
+    "mappings": {
+        "enqp": {
+            "properties": {
+                "contribution": {
+                    "type": "nested",
+                    "properties": {
+                        "role": { "type": "keyword" }
+                    }
+                }
+            }
+        }
+    }
+}
