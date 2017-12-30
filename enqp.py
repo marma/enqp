@@ -15,7 +15,7 @@
 #
 # Alternative:
 #
-# nested:{ name:pelle and lastName:Olsson and agent:{ } }
+# nested:{ role:aut and agent:{ name:pelle and lastName:Olsson } }
 #
 
 from sys import argv,stdin,stderr
