@@ -12,6 +12,11 @@
 #
 # match multiple levels of nested objects:
 #   contributor:{ role: aut, agent: { name: Pelle, lastName: Olsson } }
+#
+# Alternative:
+#
+# nested:{ name:pelle and lastName:Olsson and agent:{ } }
+#
 
 from sys import argv,stdin,stderr
 from lark import Lark
@@ -22,8 +27,9 @@ class ENQP():
         self.mapping = mapping
         self.nested = nested
         self.parser = Lark('query:          query_part | boolean_query\n' +
-                           'query_part:     asterisk | expr | dictionary | "(" query ")"\n' +
+                           'query_part:     asterisk | expr | dictionary | "(" query ")" | nested_query\n' +
                            'boolean_query:  query_part operator query_part (operator query_part)*\n' +
+                           'nested_query:   "{" query "}"\n' +
                            'dictionary:     "{" [key_val] ("," key_val)* "}"\n' +
                            'key_val:        field ":" (string | dictionary)\n' +
                            'operator:       and | or\n' + # | and_not\n' +
@@ -31,7 +37,7 @@ class ENQP():
                            'or:             "or"i\n' +
                            #'and_not:        "and not"i\n' +
                            'expr:           string | fielded_expr\n' +
-                           'fielded_expr:   field ":" (string | dictionary)\n' +
+                           'fielded_expr:   field ":" (string | dictionary | nested_query)\n' +
                            'field:          CNAME | "\\"" CNAME "\\""\n' +
                            'string:         CNAME | ESCAPED_STRING\n' +
                            'asterisk:       "*"\n' +
@@ -43,11 +49,29 @@ class ENQP():
 
 
     def _handle(self, node, field=''):
+        #if field in nested:
+        #    return { 'nested': { 'path': field, 'query': self._handle
+
         if node.data in [ 'query', 'query_part']:
             return self._handle(node.children[0], field)
+        elif node.data == 'nested_query':
+            return {
+                        'nested': {
+                            'path': field,
+                            'query': self._handle(node.children[0], field)
+                        }
+                    } if field != '' else self._handle(node.children[0])
         elif node.data == 'dictionary':
             if len(node.children) == 0:
-                return { 'match_all': {} }
+                if field != '':
+                    return  {
+                                'nested': {
+                                    'path': field,
+                                    'query': { 'match_all': {} }
+                                }
+                            }
+                else:
+                    return { 'match_all': {} }
             else:
                 if field != '':
                     return {
@@ -85,7 +109,7 @@ class ENQP():
                 return  {
                             'bool': {
                                 'must': [
-                                    self._handle(x) for x in should[0] if x.data != 'operator'
+                                    self._handle(x, field) for x in should[0] if x.data != 'operator'
                                 ]
                             }
                         }
@@ -94,11 +118,11 @@ class ENQP():
                             'bool': {
                                 'min_should_match': 1,
                                 'should': [
-                                    self._handle(l[0]) if len(l) == 1 else
+                                    self._handle(l[0], field) if len(l) == 1 else
                                     {
                                         'bool': {
                                             'must': [
-                                                self._handle(x) for x in l if x.data != 'operator'
+                                                self._handle(x, field) for x in l if x.data != 'operator'
                                             ]
                                         }
                                     } for l in should 
@@ -114,7 +138,7 @@ class ENQP():
 
             return self._handle(node.children[1], field + '.' + f if field != '' else f)
         elif node.data == 'string':
-            return { 'term': { field if field != '' else '_all': node.children[0].value } }
+            return { 'match': { field if field != '' else '_all': node.children[0].value } }
         #elif len(node.children) == 1:
         #    print('default', file=stderr)
         #    return self._handle(node.children[0], field)
