@@ -3,7 +3,7 @@
 from sys import argv,stdin
 from requests import get,post,put,delete
 from json import loads,dumps
-from enqp import ENQP
+from enqp import parse
 
 mapping = {
     "mappings": {
@@ -76,7 +76,7 @@ docs = [{
 
 
 def search(q, base):
-    q = ENQP().parse(q)
+    q = parse(q)
     print(q)
 
     r = get(base + '/_search', headers={ 'Content-Type': 'application/json' }, data=dumps(q))
