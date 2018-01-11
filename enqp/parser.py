@@ -148,7 +148,19 @@ def _handle(node, field=''):
         return { 'match': { field if field != '' else '_all': s } }
 
 
-if __name__ == "__main__":
-    e = ENQP()
-    print(dumps(e.parse(argv[1]), indent=2))
+def create_aggregations(q):
+    return { 'aggregations': { k:_handle_agg(q[k]) for k in q } }
 
+
+def _handle_agg(value, prefix=None):
+    if '.' in value:
+        s = value.split('.')
+        path = prefix + '.' + s[0] if prefix else s[0]
+
+        return { 'nested': { 'path': path, 'aggregations': _handle_agg('.'.join(s[1:]), path) } }
+    else:
+        return { 'terms': { 'field': prefix + '.' + value if prefix else value } }
+
+
+if __name__ == "__main__":
+    parse(sys.argv[1])
