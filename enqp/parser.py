@@ -21,6 +21,7 @@
 from sys import argv,stdin,stderr
 from lark import Lark
 from json import dumps
+from copy import deepcopy
 
 debug = False
 
@@ -149,18 +150,48 @@ def _handle(node, field=''):
 
 
 def create_aggregations(q):
-    return { 'aggregations': { k:_handle_agg(q[k]) for k in q } }
+    return { 'aggregations': { k:_handle_agg(k, q[k]) for k in q } }
 
 
-def _handle_agg(value, prefix=None):
-    if '.' in value:
-        s = value.split('.')
-        path = prefix + '.' + s[0] if prefix else s[0]
+def _handle_agg(name, value, prefix=None):
+    if isinstance(value, dict):
+        if len(value) != 1:
+            raise Exception('dict must have exactly one key')
 
-        return { 'nested': { 'path': path, 'aggregations': _handle_agg('.'.join(s[1:]), path) } }
+        key,dvalue = next(iter(value.items()))
+        path = prefix + '.' + key if prefix else key
+
+        return { 'nested': { 'path': path }, 'aggregations': { name: _handle_agg(name, dvalue, path) } }
+    #if '.' in value:
+    #    s = value.split('.')
+    #    path = prefix + '.' + s[0] if prefix else s[0]
+    #
+    #    return { 'nested': { 'path': path }, 'aggregations': { name: _handle_agg(name, '.'.join(s[1:]), path) } }
     else:
         return { 'terms': { 'field': prefix + '.' + value if prefix else value } }
 
 
+def _flatten_aggs(name, r):
+    while name in r:
+        r = r[name]
+
+    return r
+
+def flatten_aggs(r):
+    r2=None
+    if 'aggregations' in r:
+        for name,agg in r['aggregations'].items():
+            if name in agg:
+                if r2 == None:
+                    r2 = deepcopy(r)
+
+                r2['aggregations'][name] = _flatten_aggs(name, r2['aggregations'][name])
+
+    return r2 or r
+
+
 if __name__ == "__main__":
     parse(sys.argv[1])
+
+
+

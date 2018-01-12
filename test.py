@@ -3,7 +3,8 @@
 from sys import argv,stdin
 from requests import get,post,put,delete
 from json import loads,dumps
-from enqp import parse
+from enqp import parse,create_aggregations,flatten_aggs
+from random import randint
 
 mapping = {
     "mappings": {
@@ -19,7 +20,7 @@ mapping = {
                         "agent": {
                             "type": "nested",
                             "properties": {
-                                "firstName": { "type": "text" },
+                                "firstName": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
                                 "lastName": { "type": "text" }
                             }
                         }
@@ -77,6 +78,9 @@ docs = [{
 
 def search(q, base):
     q = parse(q)
+    #q.update(create_aggregations({ 'type': 'type' }))
+    #q.update(create_aggregations({ 'type': 'type', 'role': { 'contribution': 'role' } }))
+    q.update(create_aggregations({ 'type': 'type', 'role': { 'contribution': 'role' }, 'first_name': { 'contribution': { 'agent': 'firstName.keyword' } } }))
     print(q)
 
     r = get(base + '/_search', headers={ 'Content-Type': 'application/json' }, data=dumps(q))
@@ -86,7 +90,7 @@ def search(q, base):
 
 if __name__ == "__main__":
     # @todo make random string
-    index_name = 'test_enqp'
+    index_name = 'test_enqp_' + str(randint(1, 100000))
     base = argv[1] + '/' + index_name
     print(base)
 
@@ -101,12 +105,11 @@ if __name__ == "__main__":
     
     # run tests
     for line in stdin:
-        print(search(line, base))
+        print(dumps(flatten_aggs(search(line, base)), indent=2))
     #print(search('type:publication', base))
 
     # delete index
     r = delete(base)
     print(r.text)
-
 
 
