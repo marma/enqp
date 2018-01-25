@@ -41,13 +41,14 @@ def parse(query):
             'field:          CNAME | "\\"" CNAME "\\""\n' +
             'string:         CNAME | ESCAPED_STRING\n' +
             'asterisk:       "*"\n' +
-            'CNAME:          /[a-zA-Z0-9\\.-]+/\n' +
+            'CNAME:          /[a-zA-Z0-9_\\.-]+/\n' +
             '%import common.ESCAPED_STRING\n' +
             '%import common.WS\n' +
             '%ignore WS',
             start='query')
 
     x = parser.parse(query)
+
     if debug:
         print(x.pretty(), file=stderr)
 
